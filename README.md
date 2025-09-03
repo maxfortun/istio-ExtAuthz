@@ -26,6 +26,7 @@ Exclude health path from auth:
 ```
 
 # Ext Authz flow
-
-Req -> Pre Req -> Ext Authz -> VS Auth -> Post Req -> Pre Res -> Svc -> Res
+<pre>
+Req -> Pre Req -> Ext Authz -> VS Auth -> Post Req -> Pre Res -> Svc -> Res  
                                |-> !200 -> Pre Res -> Res
+</pre>
