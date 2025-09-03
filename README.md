@@ -11,6 +11,18 @@ Implementation of ExtAuthz
 
 ## Config
 ### Variables
+In this case the external authorizer functions like an OIDC Relying Party and accepts trusted issuers with their credentials.  
+  
+OIDC_ISSUERS is a comma separated list of these issuers.  
+  
+The Gateway and the service may be in different k8s namespaces. The filter for the APP/service needs to be applied to each namespace that needs to have protected apps.  
+  
+APP_NAME is just a prefix for all of the filter components.  
+  
+EXT_AUTH_HOST specifes the hostname of the external authorizer.  
+  
+REDIRECT_URI is the idpresponse redirect uri that IDP is configured to trust. Usually a k8s gateway with a path to /oidc/idpresponse or /oauth2/idpresponse.  
+  
 ```yaml
 APP_NS: default
 GW_NS: default
