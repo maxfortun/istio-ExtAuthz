@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ${config.APP_NAME}-authorize
+  namespace: ${config.APP_NS}
+spec:
+  hosts:
+    - ${config.EXT_AUTH_HOST}
+  http:
+    - match:
+        - uri:
+            prefix: /oidc/authorize
+      headers:
+        request:
+          set:
+            Host: ${config.EXT_AUTH_HOST}
+      route:
+        - destination:
+            host: ${config.EXT_AUTH_HOST}
+            port:
+              number: 443

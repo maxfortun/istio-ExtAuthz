@@ -1,0 +1,32 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: ${config.APP_NAME}-app-cluster
+  namespace: ${config.APP_NS}
+spec:
+  configPatches:
+    - applyTo: CLUSTER
+      match:
+        context: SIDECAR_OUTBOUND
+      patch:
+        operation: ADD
+        value:
+          name: outbound|443||${config.EXT_AUTH_HOST}
+          type: LOGICAL_DNS
+          connect_timeout: 10s
+          dns_lookup_family: V4_ONLY
+          lb_policy: ROUND_ROBIN
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              sni: ${config.EXT_AUTH_HOST}
+          load_assignment:
+            cluster_name: outbound|443||${config.EXT_AUTH_HOST}
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: ${config.EXT_AUTH_HOST}
+                          port_value: 443

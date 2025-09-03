@@ -1,0 +1,255 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: ${config.APP_NAME}-ExtAuthz
+  namespace: ${config.APP_NS}
+spec:
+  priority: 10
+  workloadSelector:
+    labels:
+      ${config.APP_NAME}-role: client
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inline_code: |
+              function in_array(value, array)
+                for _, v in ipairs(array) do
+                  if v == value then
+                    return true
+                  end
+                end
+                return false
+              end
+
+              function envoy_on_request(request_handle)
+                request_handle:logDebug('[${config.APP_NAME}-post] in post');
+
+                local headers = request_handle:headers()
+
+                local to_keep = { 'idtoken', 'accesstoken', 'userinfo' }
+                local to_remove = {}
+                for key, value in pairs(headers) do
+                  local lkey = string.lower(key)
+                  if not in_array(key, to_keep) then
+                    table.insert(to_remove, key)
+                  end
+                end
+
+                for _, name in ipairs(to_remove) do
+                  headers:remove(name)
+                  request_handle:logDebug('[${config.APP_NAME}-post] rm head: ' .. name)
+                end
+
+                local req = request_handle:streamInfo():dynamicMetadata():get('req')
+                for key, value in pairs(req) do
+                  headers:add(key, value)
+                end
+
+                for key, value in pairs(headers) do
+                  request_handle:logDebug('[${config.APP_NAME}-post] head ' .. key .. ': ' .. value)
+                end
+
+                request_handle:logDebug('[${config.APP_NAME}-post] out post');
+              end
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.ext_authz
+          typed_config:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+            transport_api_version: V3
+            http_service:
+              server_uri:
+                uri: https://${config.EXT_AUTH_HOST}
+                cluster: outbound|443||${config.EXT_AUTH_HOST}
+                timeout: 0.5s
+              authorization_request:
+                allowed_headers:
+                  patterns:
+                    - safe_regex:
+                        google_re2: {}
+                        regex: '.*'
+              authorization_response:
+                allowed_upstream_headers:
+                  patterns:
+                    - safe_regex:
+                        google_re2: {}
+                        regex: '.*'
+                allowed_client_headers:
+                  patterns:
+                    - safe_regex:
+                        google_re2: {}
+                        regex: '.*'
+            status_on_error:
+              code: 403
+            failure_mode_allow: true
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inline_code: |2
+
+              local AUTH_PATH = os.getenv("AUTH_PATH") or "^.*$"
+              local AUTH_PATH_TOKENS = {}
+
+              for token in AUTH_PATH:gmatch("([^,]+)") do
+                table.insert(AUTH_PATH_TOKENS, token)
+              end
+
+              function shouldAuth(request_handle, path)
+                if not path then
+                  request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): no path');
+                  return true
+                end
+
+                for _, token in ipairs(AUTH_PATH_TOKENS) do
+                    local negated = false
+                    if token:sub(1,1) == "!" then
+                      negated = true
+                      token = token:sub(2)  -- remove '!' for matching
+                    end
+
+                    if negated then
+                      if not path:match(token) then
+                        request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): ' .. path .. ' does not match ' .. token);
+                        return true
+                      end
+                    else
+                      if path:match(token) then
+                        request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): ' .. path .. ' matches ' .. token);
+                        return true
+                      end
+                    end
+                end
+
+                request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(false): ' .. path .. ' did not match ' .. AUTH_PATH);
+                return false
+              end
+
+              function envoy_on_request(request_handle)
+                request_handle:logDebug('[${config.APP_NAME}-pre-req] in pre');
+
+                local metadata = request_handle:streamInfo():dynamicMetadata()
+
+                local headers = request_handle:headers()
+                for key, value in pairs(headers) do
+                   metadata:set('req', key, value)
+                end
+
+                local scheme = headers:get(':scheme') or 'http'
+                local authority = headers:get(':authority') or 'localhost'
+                local path = headers:get('x-envoy-original-path') or headers:get(':path') or '/'
+
+                if not shouldAuth(request_handle, path) then
+                  metadata:set("envoy.filters.http.ext_authz", "disabled", true)
+                  return
+                end
+
+                local uri = 'https://' .. authority .. path
+
+                headers:add('X-OIDC-RedirectURI', uri)
+
+                headers:replace(':scheme', 'https')
+                headers:replace(':authority', '${config.EXT_AUTH_HOST}')
+
+                local to_remove = {}
+                for key, value in pairs(headers) do
+                  local lkey = string.lower(key)
+                  if lkey:find('^x%-envoy%-') or lkey:find('^x%-forwarded%-') then
+                    table.insert(to_remove, key)
+                  end
+                end
+
+                for _, name in ipairs(to_remove) do
+                  -- request_handle:headers():remove(name)
+                  request_handle:logDebug('[${config.APP_NAME}-pre-req] Removed header: ' .. name)
+                end
+
+                local query_index = string.find(path, '?', 1, true)
+                local query = ''
+                if query_index then
+                  query = string.sub(path, query_index)
+                end
+                headers:replace(':path', '/oidc/authorize' .. query)
+
+                headers:add('X-OIDC-Issuers', '${config.OIDC_ISSUERS}')
+
+                for ns, data in pairs(metadata) do
+                  for key, value in pairs(data) do
+                    request_handle:logDebug('[${config.APP_NAME}-pre-req] meta ' .. ns .. '.' .. key .. ': ' .. tostring(value))
+                  end
+                end
+
+                for key, value in pairs(headers) do
+                  request_handle:logDebug('[${config.APP_NAME}-pre-req] head ' .. key .. ': ' .. value)
+                end
+
+                request_handle:logDebug('[${config.APP_NAME}-pre-req] out pre');
+              end
+
+              function envoy_on_response(response_handle)
+                response_handle:logDebug('[${config.APP_NAME}-pre-res] in response');
+
+                local headers = response_handle:headers()
+
+                local location = headers:get('location')
+                if location and location ~= '' then
+                  response_handle:headers():replace(':status', '307')
+                  response_handle:logDebug('[${config.APP_NAME}-pre-res] response code changed');
+                end
+
+                local status = headers:get(':status')
+                if status ~= '200' then
+                  response_handle:logDebug('[${config.APP_NAME}-pre-res] status: ' .. status);
+
+                  local body = ''
+                  local ok, result = pcall(function()
+                    local len = response_handle:body():length()
+                    return response_handle:body():getBytes(0, len)
+                  end)
+
+                  if ok then
+                    body = result
+                  else
+                    response_handle:logWarn('Failed to read body: ' .. tostring(result))
+                  end
+
+                  response_handle:logDebug('[${config.APP_NAME}-pre-res] body: ' .. body);
+
+                  response_handle:body():setBytes(body)
+
+                end
+              end

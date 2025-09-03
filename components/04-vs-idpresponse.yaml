@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ${config.APP_NAME}-idpresponse
+  namespace: ${config.APP_NS}
+spec:
+  gateways:
+    - ${config.GW_NS}/${config.GW_NAME}
+  hosts:
+    - "*"
+  http:
+    - match:
+        - uri:
+            prefix: /oidc/idpresponse
+      rewrite:
+        uri: /oidc/idpresponse
+      route:
+        - destination:
+            host: ${config.EXT_AUTH_HOST}
+            port:
+              number: 443
+          headers:
+            request:
+              set:
+                Host: ${config.EXT_AUTH_HOST}
+                X-OIDC-RedirectURI: ${config.REDIRECT_URI}
