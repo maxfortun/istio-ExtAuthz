@@ -11,7 +11,8 @@ for file in $*; do
 done
 
 SD=$(dirname $0)
-cat $SD/pipeline.yaml | grep -v '^#' | sed 's/://' | while read k v; do
+CONFIG=${CONFIG:-$SD/config.yaml}
+cat $CONFIG | grep -v '^#' | sed 's/://' | while read k v; do
 	v=${v//\//\\\/}
 	v=${v//&/\\&}
 	for file in $*; do
