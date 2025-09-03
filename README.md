@@ -2,12 +2,12 @@
 Implementation of ExtAuthz
 [Conf](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter) 
 [API](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_authz/v3/ext_authz.proto#extensions-filters-http-ext-authz-v3-extauthz)  
+  
+<details>
+  <summary>ExtAuthz Sequence diagram</summary>
+  <a href="docs/sequence-diagram.pdf"><img src="docs/sequence-diagram.svg" alt="PDF"></a>
+</details>
 
-## Ext Authz flow
-<pre>
-Http request -> Gateway -> Pre request -> ExtAuthz -> VS Authorize -> Post request -> Pre response -> Service -> Http response
-                                             |-> !200 -> Pre response -> Http response
-</pre>
 
 ## Config
 ### Variables
