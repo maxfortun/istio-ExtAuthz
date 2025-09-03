@@ -1,3 +1,4 @@
+# Needed for inbound calls returning from the IDP to the EnvoyFilter
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:

@@ -1,3 +1,4 @@
+# Needed for outbound calls to the external service made from the EnvoyFilter running on the Pod side
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:

@@ -1,3 +1,5 @@
+# ExtAuthz logic
+
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
@@ -9,6 +11,14 @@ spec:
     labels:
       ${config.APP_NAME}-role: client
   configPatches:
+
+    # Since the patches are using INSERT_BEFORE, they need to be listed in reverse order.
+
+    # POST stage:
+    # This is the last stage that will happen after the return from the ExtAuthz stage.
+    # In this stage we restore all original request headers
+    # and add access token, id token, and user info headers
+    # so that the protected application can have access to these.
     - applyTo: HTTP_FILTER
       match:
         context: SIDECAR_INBOUND
@@ -64,6 +74,10 @@ spec:
 
                 request_handle:logDebug('[${config.APP_NAME}-post] out post');
               end
+
+    # ExtAuthz stage:
+    # This is the main call to the external auth endpoint
+    # All of the required headers would have been set by now in a PRE stage.
     - applyTo: HTTP_FILTER
       match:
         context: SIDECAR_INBOUND
@@ -105,6 +119,18 @@ spec:
             status_on_error:
               code: 403
             failure_mode_allow: true
+
+    # PRE stage:
+    # This is the first stage that will be called.
+    # It is responsible for setting up the required request headers to the auth endpoint.
+    # It does a number of things:
+    #   1. Checks that the path requested need auth
+    #      Can be configured by setting AUTH_PATH in proxyMetadata of the Deployment
+    #      See README for more.
+    #   2. Rewrites destination uri to point to the external auth endpoint
+    #   3. Specifies the idpresponse return uri
+    #   4. On response from the external auth decides whether to let the request through
+    #      or return the response from the external auth endpoint
     - applyTo: HTTP_FILTER
       match:
         context: SIDECAR_INBOUND
