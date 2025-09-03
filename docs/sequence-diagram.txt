@@ -2,6 +2,8 @@
 
 title ExtAuthz with proxied IDP response
 
+actor Client
+
 ==Not logged in==
 
 Client->Gateway:Orig req
