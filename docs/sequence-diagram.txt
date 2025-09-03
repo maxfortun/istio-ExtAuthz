@@ -1,5 +1,7 @@
 # https://sequencediagram.org
 
+bottomparticipants
+
 title ExtAuthz with proxied IDP response
 
 actor Client
