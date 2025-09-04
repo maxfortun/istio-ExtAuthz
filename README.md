@@ -60,12 +60,21 @@ ext-auth-role: client
 
 Exclude health path, if needed, from auth:
 > AUTH_PATH is a comma separated list of single path regexes, with a leading exclamation mark (!) indicating negation.
-```yaml
-      annotations:
+> OIDC_ISSUERS is a secret:
+```
+kubectl -n default create secret generic ext-auth \
+  --from-literal=OIDC_ISSUERS='https://...' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+```
         proxy.istio.io/config: |
           holdApplicationUntilProxyStarts: true
           proxyMetadata:
-            AUTH_PATH: "!^/health"
-
+            AUTH_PATH: "!^/health%-1,!^/health%-2"
+        sidecar.istio.io/userVolume: |
+          [{"name":"ext-auth","secret":{"secretName":"ext-auth"}}]
+        sidecar.istio.io/userVolumeMount: |
+          [{"name":"ext-auth","mountPath":"/etc/ext-auth/OIDC_ISSUERS","subPath":"OIDC_ISSUERS","readOnly":true}]
 ```
 
