@@ -154,6 +154,13 @@ spec:
             '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
             inline_code: |2
 
+              local OIDC_ISSUERS_FILE_NAME = os.getenv("OIDC_ISSUERS_FILE_NAME") or "/etc/ext-auth/OIDC_ISSUERS"
+              print("OIDC_ISSUERS_FILE_NAME:", OIDC_ISSUERS_FILE_NAME)
+              local OIDC_ISSUERS_FILE = io.open(OIDC_ISSUERS_FILE_NAME, "r")
+              local OIDC_ISSUERS = OIDC_ISSUERS_FILE:read("*l")
+              OIDC_ISSUERS_FILE:close()
+              print("OIDC_ISSUERS_FILE closed with: ", OIDC_ISSUERS)
+
               local AUTH_PATH = os.getenv("AUTH_PATH") or "^.*$"
               local AUTH_PATH_TOKENS = {}
 
@@ -238,7 +245,7 @@ spec:
                 end
                 headers:replace(':path', '/oidc/authorize' .. query)
 
-                headers:add('X-OIDC-Issuers', '${config.OIDC_ISSUERS}')
+                headers:add('X-OIDC-Issuers', OIDC_ISSUERS)
 
                 for ns, data in pairs(metadata) do
                   for key, value in pairs(data) do
