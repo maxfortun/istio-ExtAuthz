@@ -116,6 +116,12 @@ spec:
                     - safe_regex:
                         google_re2: {}
                         regex: '.*'
+            filter_enabled_metadata:
+              filter: envoy.filters.http.ext_authz
+              path:
+                - key: disabled
+              value: 
+                bool_match: false
             status_on_error:
               code: 403
             failure_mode_allow: true
@@ -160,29 +166,29 @@ spec:
                   request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): no path');
                   return true
                 end
-
+              
                 for _, token in ipairs(AUTH_PATH_TOKENS) do
                     local negated = false
                     if token:sub(1,1) == "!" then
                       negated = true
                       token = token:sub(2)  -- remove '!' for matching
                     end
-
+                      
                     if negated then
-                      if not path:match(token) then
-                        request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): ' .. path .. ' does not match ' .. token);
-                        return true
+                      if path:match(token) then
+                        request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(false): ' .. path .. ' does not match ' .. token);
+                        return false
                       end
                     else
-                      if path:match(token) then
-                        request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): ' .. path .. ' matches ' .. token);
-                        return true
+                      if not path:match(token) then
+                        request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(false): ' .. path .. ' matches ' .. token);
+                        return false
                       end
                     end
                 end
 
-                request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(false): ' .. path .. ' did not match ' .. AUTH_PATH);
-                return false
+                request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): ' .. path .. ' did not match ' .. AUTH_PATH);
+                return true
               end
 
               function envoy_on_request(request_handle)
@@ -203,6 +209,7 @@ spec:
                   metadata:set("envoy.filters.http.ext_authz", "disabled", true)
                   return
                 end
+                metadata:set("envoy.filters.http.ext_authz", "disabled", false)
 
                 local uri = 'https://' .. authority .. path
 
