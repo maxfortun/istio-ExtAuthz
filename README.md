@@ -60,6 +60,10 @@ ext-auth-role: client
 
 Exclude health path, if needed, from auth:
 > AUTH_PATH is a comma separated list of single path regexes, with a leading exclamation mark (!) indicating negation.
+
+Restrict auth to specific ports (optional):
+> AUTH_PORTS is a comma separated list of ports. If set, auth only applies to requests on these ports. If empty/unset, auth applies to all ports.
+
 > OIDC_ISSUERS is a secret:
 ```
 kubectl -n default create secret generic ext-auth \
@@ -72,6 +76,7 @@ kubectl -n default create secret generic ext-auth \
           holdApplicationUntilProxyStarts: true
           proxyMetadata:
             AUTH_PATH: "!^/health%-1,!^/health%-2"
+            AUTH_PORTS: "8080,8443"
         sidecar.istio.io/userVolume: |
           [{"name":"ext-auth","secret":{"secretName":"ext-auth"}}]
         sidecar.istio.io/userVolumeMount: |

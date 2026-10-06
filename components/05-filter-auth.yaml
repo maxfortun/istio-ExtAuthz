@@ -185,7 +185,22 @@ spec:
                 table.insert(AUTH_PATH_TOKENS, token)
               end
 
+              local AUTH_PORTS = os.getenv("AUTH_PORTS") or ""
+              local AUTH_PORTS_SET = {}
+
+              for port in AUTH_PORTS:gmatch("([^,]+)") do
+                AUTH_PORTS_SET[port] = true
+              end
+
               function shouldAuth(request_handle, path)
+                if AUTH_PORTS ~= "" then
+                  local port = tostring(request_handle:connection():localAddress():portValue())
+                  if not AUTH_PORTS_SET[port] then
+                    request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(false): port ' .. port .. ' not in AUTH_PORTS')
+                    return false
+                  end
+                end
+
                 if not path then
                   request_handle:logDebug('[${config.APP_NAME}-pre-req] shouldAuth(true): no path');
                   return true
