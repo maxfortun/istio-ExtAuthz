@@ -71,6 +71,26 @@ kubectl -n default create secret generic ext-auth \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+### Per-Request Secrets Key (Optional)
+For apps using request-level encryption (where IdP secrets are encrypted with a key only the app knows), configure `OIDC_SECRETS_KEY`:
+
+> OIDC_SECRETS_KEY is a base64-encoded 32-byte encryption key. Can be set via environment variable or file.
+
+```bash
+# Generate a key
+KEY=$(openssl rand -base64 32)
+
+# Add to secret
+kubectl -n default create secret generic ext-auth \
+  --from-literal=OIDC_ISSUERS='https://...' \
+  --from-literal=OIDC_SECRETS_KEY="$KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+The key is sent as the `ezsso-oidc-secrets-key` header to ezsso-auth for decrypting IdP client secrets sealed with `source: "request"`.
+
+### Example Deployment Annotation
+
 ```
         proxy.istio.io/config: |
           holdApplicationUntilProxyStarts: true
@@ -80,6 +100,13 @@ kubectl -n default create secret generic ext-auth \
         sidecar.istio.io/userVolume: |
           [{"name":"ext-auth","secret":{"secretName":"ext-auth"}}]
         sidecar.istio.io/userVolumeMount: |
-          [{"name":"ext-auth","mountPath":"/etc/ext-auth/OIDC_ISSUERS","subPath":"OIDC_ISSUERS","readOnly":true}]
+          [{"name":"ext-auth","mountPath":"/etc/ext-auth/OIDC_ISSUERS","subPath":"OIDC_ISSUERS","readOnly":true},{"name":"ext-auth","mountPath":"/etc/ext-auth/OIDC_SECRETS_KEY","subPath":"OIDC_SECRETS_KEY","readOnly":true}]
+```
+
+Or via environment variable:
+```
+        proxy.istio.io/config: |
+          proxyMetadata:
+            OIDC_SECRETS_KEY: "<base64-32-byte-key>"
 ```
 

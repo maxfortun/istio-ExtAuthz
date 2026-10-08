@@ -155,26 +155,57 @@ spec:
             inline_code: |2
 
               local OIDC_ISSUERS = nil
-          
+
               function getOIDCIssuers(request_handle)
                 if OIDC_ISSUERS then
                     return OIDC_ISSUERS
                 end
-              
+
                 local OIDC_ISSUERS_FILE_NAME = os.getenv("OIDC_ISSUERS_FILE_NAME") or "/etc/ext-auth/OIDC_ISSUERS"
                 request_handle:logDebug('[${config.APP_NAME}-getOIDCIssuers] reading ' .. OIDC_ISSUERS_FILE_NAME)
-             
+
                 local f = io.open(OIDC_ISSUERS_FILE_NAME, "r")
                 if f then
                     OIDC_ISSUERS = f:read("*l")
                     f:close()
                     request_handle:logDebug('[${config.APP_NAME}-getOIDCIssuers] loaded OIDC_ISSUERS: ' .. OIDC_ISSUERS)
-                else      
+                else
                     request_handle:logErr('[${config.APP_NAME}-getOIDCIssuers] failed to open ' .. OIDC_ISSUERS_FILE_NAME)
                     OIDC_ISSUERS = ""
                 end
 
                 return OIDC_ISSUERS
+              end
+
+              local OIDC_SECRETS_KEY = nil
+
+              function getOIDCSecretsKey(request_handle)
+                if OIDC_SECRETS_KEY then
+                    return OIDC_SECRETS_KEY
+                end
+
+                -- Try environment variable first
+                OIDC_SECRETS_KEY = os.getenv("OIDC_SECRETS_KEY")
+                if OIDC_SECRETS_KEY and OIDC_SECRETS_KEY ~= "" then
+                    request_handle:logDebug('[${config.APP_NAME}-getOIDCSecretsKey] loaded from env')
+                    return OIDC_SECRETS_KEY
+                end
+
+                -- Fall back to file
+                local OIDC_SECRETS_KEY_FILE_NAME = os.getenv("OIDC_SECRETS_KEY_FILE_NAME") or "/etc/ext-auth/OIDC_SECRETS_KEY"
+                request_handle:logDebug('[${config.APP_NAME}-getOIDCSecretsKey] reading ' .. OIDC_SECRETS_KEY_FILE_NAME)
+
+                local f = io.open(OIDC_SECRETS_KEY_FILE_NAME, "r")
+                if f then
+                    OIDC_SECRETS_KEY = f:read("*l")
+                    f:close()
+                    request_handle:logDebug('[${config.APP_NAME}-getOIDCSecretsKey] loaded from file')
+                else
+                    request_handle:logDebug('[${config.APP_NAME}-getOIDCSecretsKey] no secrets key configured')
+                    OIDC_SECRETS_KEY = ""
+                end
+
+                return OIDC_SECRETS_KEY
               end
 
 
@@ -278,6 +309,11 @@ spec:
                 headers:replace(':path', '/oidc/authorize' .. query)
 
                 headers:add('X-OIDC-Issuers', getOIDCIssuers(request_handle))
+
+                local secretsKey = getOIDCSecretsKey(request_handle)
+                if secretsKey and secretsKey ~= '' then
+                  headers:add('ezsso-oidc-secrets-key', secretsKey)
+                end
 
                 for ns, data in pairs(metadata) do
                   for key, value in pairs(data) do
