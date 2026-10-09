@@ -161,7 +161,7 @@ spec:
                     return OIDC_ISSUERS
                 end
 
-                local OIDC_ISSUERS_FILE_NAME = os.getenv("OIDC_ISSUERS_FILE_NAME") or "/etc/ext-auth/OIDC_ISSUERS"
+                local OIDC_ISSUERS_FILE_NAME = os.getenv("OIDC_ISSUERS_FILE_NAME") or "/etc/ezsso/OIDC_ISSUERS"
                 request_handle:logDebug('[${config.APP_NAME}-getOIDCIssuers] reading ' .. OIDC_ISSUERS_FILE_NAME)
 
                 local f = io.open(OIDC_ISSUERS_FILE_NAME, "r")
@@ -192,7 +192,7 @@ spec:
                 end
 
                 -- Fall back to file
-                local OIDC_SECRETS_KEY_FILE_NAME = os.getenv("OIDC_SECRETS_KEY_FILE_NAME") or "/etc/ext-auth/OIDC_SECRETS_KEY"
+                local OIDC_SECRETS_KEY_FILE_NAME = os.getenv("OIDC_SECRETS_KEY_FILE_NAME") or "/etc/ezsso/OIDC_SECRETS_KEY"
                 request_handle:logDebug('[${config.APP_NAME}-getOIDCSecretsKey] reading ' .. OIDC_SECRETS_KEY_FILE_NAME)
 
                 local f = io.open(OIDC_SECRETS_KEY_FILE_NAME, "r")
