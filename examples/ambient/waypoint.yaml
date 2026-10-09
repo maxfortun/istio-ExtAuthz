@@ -1,0 +1,50 @@
+# Example: Waypoint with ezsso auth (ambient mode)
+#
+# Prerequisites:
+#   1. Enable ambient: kubectl label namespace default istio.io/dataplane-mode=ambient
+#   2. Apply EnvoyFilter: ./render.sh components/ambient/*.yaml | kubectl apply -f -
+#   3. Create secret: kubectl create secret generic ezsso --from-literal=OIDC_ISSUERS='...'
+#
+# This example shows how to create and label waypoints for auth.
+
+---
+# Option A: Namespace-wide waypoint (all services in namespace get auth)
+#
+# Create with: istioctl waypoint apply --namespace default --name default
+# Then label it:
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: default
+  namespace: default
+  labels:
+    istio.io/waypoint-for: all
+    ezsso-auth: enabled  # Opt-in to ezsso auth
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+
+---
+# Option B: Per-service waypoint (only specific services get auth)
+#
+# Create with: istioctl waypoint apply --for service --name my-service --namespace default
+# Then label it:
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: my-service
+  namespace: default
+  labels:
+    istio.io/waypoint-for: service
+    ezsso-auth: enabled  # Opt-in to ezsso auth
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE

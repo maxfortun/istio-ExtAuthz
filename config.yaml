@@ -5,7 +5,8 @@ APP_NS: default
 APP_NAME: ezsso
 EXT_AUTH_HOST: api.ezsso.me
 
-# Sidecar mode (default): apps need label "ezsso-role: client"
-
-# Ambient mode only: waypoint proxy name
-WAYPOINT_NAME: default
+# Sidecar mode (default):
+#   Apps opt-in with label: ezsso-role: client
+#
+# Ambient mode:
+#   Waypoints opt-in with label: ezsso-auth: enabled

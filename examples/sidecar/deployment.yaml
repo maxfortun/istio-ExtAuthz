@@ -1,0 +1,39 @@
+# Example: App deployment with ezsso auth (sidecar mode)
+#
+# 1. Apply the EnvoyFilter: ./render.sh components/sidecar/*.yaml | kubectl apply -f -
+# 2. Create the secret: kubectl create secret generic ezsso --from-literal=OIDC_ISSUERS='...'
+# 3. Apply this deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+    ezsso-role: client  # Opt-in to ezsso auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+        ezsso-role: client  # Required: enables auth for this pod
+      annotations:
+        # Mount ezsso secrets into the sidecar
+        sidecar.istio.io/userVolume: |
+          [{"name":"ezsso","secret":{"secretName":"ezsso"}}]
+        sidecar.istio.io/userVolumeMount: |
+          [{"name":"ezsso","mountPath":"/etc/ezsso","readOnly":true}]
+        # Optional: configure auth paths
+        proxy.istio.io/config: |
+          proxyMetadata:
+            AUTH_PATH: "!^/health,!^/ready"
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports:
+            - containerPort: 80

@@ -1,4 +1,5 @@
 # ezsso auth filter for Istio Ambient mode (waypoint proxy)
+# Targets waypoints with label: ezsso-auth: enabled
 
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
@@ -10,7 +11,7 @@ spec:
   workloadSelector:
     labels:
       gateway.istio.io/managed: istio.io-mesh-controller
-      istio.io/gateway-name: ${config.WAYPOINT_NAME}
+      ${config.APP_NAME}-auth: enabled
   configPatches:
 
     # POST stage: restore headers after auth
