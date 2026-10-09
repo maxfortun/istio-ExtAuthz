@@ -1,0 +1,67 @@
+# ezsso auth filter for Istio Ambient mode (waypoint proxy)
+
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: ${config.APP_NAME}-auth
+  namespace: ${config.APP_NS}
+spec:
+  priority: 10
+  workloadSelector:
+    labels:
+      gateway.istio.io/managed: istio.io-mesh-controller
+      istio.io/gateway-name: ${config.WAYPOINT_NAME}
+  configPatches:
+
+    # POST stage: restore headers after auth
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inline_code: |
+              ${include:components/filter/post.lua}
+
+    # ExtAuthz stage: call ezsso-auth
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          ${include:components/filter/extauthz.yaml}
+
+    # PRE stage: prepare auth request
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inline_code: |
+              ${include:components/filter/pre.lua}

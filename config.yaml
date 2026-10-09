@@ -1,11 +1,11 @@
 # Config for rendering the yaml templates
+# Default: sidecar mode (./render.sh components/sidecar/*.yaml)
 
 APP_NS: default
-GW_NS: default
-GW_NAME: default-gateway
-
 APP_NAME: ezsso
 EXT_AUTH_HOST: api.ezsso.me
 
-# Example OIDC_ISSUERS (configure via secret, not here)
-# OIDC_ISSUERS: https://accounts.google.com?client_id=...&client_secret=...&scope=openid email profile
+# Sidecar mode (default): apps need label "ezsso-role: client"
+
+# Ambient mode only: waypoint proxy name
+WAYPOINT_NAME: default

@@ -1,0 +1,35 @@
+name: envoy.filters.http.ext_authz
+typed_config:
+  '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+  transport_api_version: V3
+  http_service:
+    server_uri:
+      uri: https://${config.EXT_AUTH_HOST}
+      cluster: outbound|443||${config.EXT_AUTH_HOST}
+      timeout: 0.5s
+    authorization_request:
+      allowed_headers:
+        patterns:
+          - safe_regex:
+              google_re2: {}
+              regex: '.*'
+    authorization_response:
+      allowed_upstream_headers:
+        patterns:
+          - safe_regex:
+              google_re2: {}
+              regex: '.*'
+      allowed_client_headers:
+        patterns:
+          - safe_regex:
+              google_re2: {}
+              regex: '.*'
+  filter_enabled_metadata:
+    filter: envoy.filters.http.ext_authz
+    path:
+      - key: disabled
+    value:
+      bool_match: false
+  status_on_error:
+    code: 403
+  failure_mode_allow: true

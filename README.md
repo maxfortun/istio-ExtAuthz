@@ -1,107 +1,125 @@
 # ezsso istio-client
 
-Istio/Envoy integration for ezsso-auth using the ExtAuthz filter.
+Istio integration for ezsso-auth. Supports sidecar mode (default) and ambient mode.
 
-## How it works
+## Structure
 
-1. Envoy sidecar intercepts requests to protected services
-2. Lua filter rewrites request to ezsso-auth `/oidc/authorize`
-3. ExtAuthz filter makes the auth subrequest
-4. If authenticated (200): request proceeds with token headers
-5. If unauthenticated (401 + Location): Lua converts to 303 redirect to IdP
-
-## References
-
-- [ExtAuthz Configuration](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter)
-- [ExtAuthz API](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_authz/v3/ext_authz.proto)
-
-<details>
-  <summary>Sequence diagram</summary>
-  <a href="docs/sequence-diagram.pdf"><img src="docs/sequence-diagram.svg" alt="PDF"></a>
-</details>
+```
+components/
+├── filter/              # Shared auth logic (Lua + ExtAuthz config)
+│   ├── pre.lua          # PRE stage: prepare auth request
+│   ├── post.lua         # POST stage: restore headers
+│   └── extauthz.yaml    # ExtAuthz filter config
+├── sidecar/             # Sidecar mode EnvoyFilter
+│   └── envoyfilter.yaml
+└── ambient/             # Ambient mode EnvoyFilter
+    └── envoyfilter.yaml
+```
 
 ## Configuration
 
-### Variables
-
+Edit `config.yaml`:
 ```yaml
-APP_NS: default           # Namespace for the protected app
-GW_NS: default            # Namespace for the gateway
-GW_NAME: default-gateway  # Gateway name
+APP_NS: default
+APP_NAME: ezsso
+EXT_AUTH_HOST: api.ezsso.me
 
-APP_NAME: ezsso           # Prefix for filter components
-EXT_AUTH_HOST: api.ezsso.me  # ezsso-auth hostname
+# Ambient mode only
+WAYPOINT_NAME: default
 ```
 
-### Render and Install
+## Sidecar Mode
 
+For traditional Istio with sidecar injection.
+
+### Setup
+
+1. Label your app for auth:
 ```bash
-# Render templates with your config
-./render.sh components/*.yaml > rendered.yaml
-
-# Apply to cluster
-kubectl apply -f rendered.yaml
+kubectl label deployment my-app ezsso-role=client
 ```
 
-### Gateway Setup
-
-Add label to the Gateway:
-```yaml
-ezsso-role: gateway
-```
-
-### Deployment Setup
-
-Add label to protected Deployments:
-```yaml
-ezsso-role: client
-```
-
-### Auth Configuration
-
-Configure via secret:
+2. Render and apply:
 ```bash
-kubectl -n default create secret generic ezsso \
-  --from-literal=OIDC_ISSUERS='https://...' \
-  --dry-run=client -o yaml | kubectl apply -f -
+./render.sh components/sidecar/*.yaml | kubectl apply -f -
 ```
 
-### Per-Request Secrets Key (Optional)
-
-For apps using request-level encryption (BYOK):
-
+3. Create secrets (mounted via pod annotations):
 ```bash
-KEY=$(openssl rand -base64 32)
-
-kubectl -n default create secret generic ezsso \
-  --from-literal=OIDC_ISSUERS='https://...' \
-  --from-literal=OIDC_SECRETS_KEY="$KEY" \
-  --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic ezsso \
+  --from-literal=OIDC_ISSUERS='https://accounts.google.com?client_id=...&client_secret=...'
 ```
 
-The key is sent as `ezsso-oidc-secrets-key` header for decrypting IdP secrets sealed with `source: "request"`.
-
-### Deployment Annotations
-
+4. Add pod annotations:
 ```yaml
 proxy.istio.io/config: |
-  holdApplicationUntilProxyStarts: true
   proxyMetadata:
-    AUTH_PATH: "!^/health"      # Exclude paths (! = negation)
-    AUTH_PORTS: "8080,8443"     # Only auth these ports (optional)
+    AUTH_PATH: "!^/health"
 sidecar.istio.io/userVolume: |
   [{"name":"ezsso","secret":{"secretName":"ezsso"}}]
 sidecar.istio.io/userVolumeMount: |
-  [{"name":"ezsso","mountPath":"/etc/ezsso/OIDC_ISSUERS","subPath":"OIDC_ISSUERS","readOnly":true},
-   {"name":"ezsso","mountPath":"/etc/ezsso/OIDC_SECRETS_KEY","subPath":"OIDC_SECRETS_KEY","readOnly":true}]
+  [{"name":"ezsso","mountPath":"/etc/ezsso","readOnly":true}]
 ```
 
-Or via environment variable:
-```yaml
-proxy.istio.io/config: |
-  proxyMetadata:
-    OIDC_SECRETS_KEY: "<base64-32-byte-key>"
+## Ambient Mode
+
+For Istio Ambient mesh with waypoint proxies.
+
+### Setup
+
+1. Enable ambient for namespace:
+```bash
+kubectl label namespace my-app istio.io/dataplane-mode=ambient
 ```
+
+2. Deploy waypoint:
+```bash
+istioctl waypoint apply --namespace my-app --name default
+```
+
+3. Render and apply:
+```bash
+./render.sh components/ambient/*.yaml | kubectl apply -f -
+```
+
+4. Mount secrets on waypoint:
+```bash
+kubectl create secret generic ezsso \
+  --from-literal=OIDC_ISSUERS='https://accounts.google.com?client_id=...&client_secret=...'
+
+kubectl patch deployment -l istio.io/gateway-name=default \
+  --type=json \
+  -p='[
+    {"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"ezsso","secret":{"secretName":"ezsso"}}},
+    {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"ezsso","mountPath":"/etc/ezsso","readOnly":true}}
+  ]'
+```
+
+## Path Filtering
+
+Set `AUTH_PATH` environment variable:
+- `!^/health` - exclude paths starting with /health
+- `^/api/.*` - only auth paths matching pattern
+
+Multiple patterns separated by commas: `!^/health,!^/metrics,^/api/.*`
+
+## Per-Request Secrets Key (BYOK)
+
+Add `OIDC_SECRETS_KEY` to the secret:
+```bash
+kubectl create secret generic ezsso \
+  --from-literal=OIDC_ISSUERS='...' \
+  --from-literal=OIDC_SECRETS_KEY="$(openssl rand -base64 32)"
+```
+
+## Comparison
+
+| Aspect | Sidecar | Ambient |
+|--------|---------|---------|
+| Proxy | Per-pod sidecar | Shared waypoint |
+| EnvoyFilter context | `SIDECAR_INBOUND` | `GATEWAY` |
+| Selector | App labels | Waypoint labels |
+| Secrets | Pod volumes | Waypoint volumes |
 
 ## License
 
