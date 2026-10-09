@@ -1,8 +1,14 @@
 # ezsso istio-client
 
-Istio integration for ezsso-auth. Supports sidecar mode (default) and ambient mode.
+Istio integration for ezsso-auth. Supports sidecar mode (default), ambient mode, and ingress gateways.
 
-Both modes use **opt-in labels** - only workloads/waypoints with the label get auth.
+All modes use **opt-in labels** with `ezsso-role`:
+
+| Role | Mode | Applied to |
+|------|------|------------|
+| `ezsso-role: client` | Sidecar | App pods |
+| `ezsso-role: waypoint` | Ambient | Waypoint proxies |
+| `ezsso-role: gateway` | Gateway | Istio ingress gateways |
 
 ## Structure
 
@@ -14,7 +20,9 @@ components/
 │   └── extauthz.yaml
 ├── sidecar/             # Sidecar mode (default)
 │   └── envoyfilter.yaml
-└── ambient/             # Ambient mode
+├── ambient/             # Ambient mode
+│   └── envoyfilter.yaml
+└── gateway/             # Gateway mode
     └── envoyfilter.yaml
 
 examples/
@@ -107,7 +115,7 @@ kubectl label namespace default istio.io/dataplane-mode=ambient
 
 ### 3. Create & Label Waypoints
 
-Waypoints opt-in with label `ezsso-auth: enabled`.
+Waypoints opt-in with label `ezsso-role: waypoint`.
 
 **Option A: Namespace-wide waypoint**
 
@@ -116,7 +124,7 @@ Waypoints opt-in with label `ezsso-auth: enabled`.
 istioctl waypoint apply --namespace default --name default
 
 # Label it for auth
-kubectl label gateway default ezsso-auth=enabled
+kubectl label gateway default ezsso-role=waypoint
 ```
 
 **Option B: Per-service waypoint**
@@ -126,7 +134,7 @@ kubectl label gateway default ezsso-auth=enabled
 istioctl waypoint apply --for service --name my-service --namespace default
 
 # Label it for auth
-kubectl label gateway my-service ezsso-auth=enabled
+kubectl label gateway my-service ezsso-role=waypoint
 ```
 
 ### 4. Mount Secrets on Waypoint
@@ -149,6 +157,26 @@ See `examples/ambient/` for complete examples.
 
 ---
 
+## Gateway Mode
+
+For Istio ingress gateways (edge auth at the gateway instead of sidecars).
+
+### 1. Apply EnvoyFilter
+
+```bash
+./render.sh components/gateway/*.yaml | kubectl apply -f -
+```
+
+### 2. Label Gateway
+
+```bash
+kubectl -n istio-system label deployment istio-ingressgateway ezsso-role=gateway
+```
+
+That's it. The gateway already has secrets configured.
+
+---
+
 ## Path Filtering
 
 Exclude paths from auth via `AUTH_PATH` environment variable:
@@ -168,9 +196,9 @@ proxy.istio.io/config: |
     AUTH_PATH: "!^/health"
 ```
 
-**Ambient mode**: Set on waypoint deployment
+**Ambient/Gateway mode**: Set on deployment
 ```bash
-kubectl set env deployment/<waypoint> AUTH_PATH='!^/health'
+kubectl set env deployment/<name> AUTH_PATH='!^/health'
 ```
 
 ---
@@ -189,13 +217,12 @@ kubectl create secret generic ezsso \
 
 ## Comparison
 
-| Aspect | Sidecar | Ambient |
-|--------|---------|---------|
-| Opt-in label | `ezsso-role: client` | `ezsso-auth: enabled` |
-| Applied to | App pods | Waypoint proxies |
-| EnvoyFilter context | `SIDECAR_INBOUND` | `GATEWAY` |
-| Secrets mount | Pod annotations | Waypoint deployment |
-| Granularity | Per-pod | Per-waypoint (namespace or service) |
+| Aspect | Sidecar | Ambient | Gateway |
+|--------|---------|---------|---------|
+| Label | `ezsso-role: client` | `ezsso-role: waypoint` | `ezsso-role: gateway` |
+| Applied to | App pods | Waypoint proxies | Ingress gateway |
+| Context | `SIDECAR_INBOUND` | `GATEWAY` | `GATEWAY` |
+| Granularity | Per-pod | Per-waypoint | Edge (all traffic) |
 
 ## License
 

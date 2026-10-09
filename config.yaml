@@ -2,11 +2,11 @@
 # Default: sidecar mode (./render.sh components/sidecar/*.yaml)
 
 APP_NS: default
+GW_NS: istio-system
 APP_NAME: ezsso
 EXT_AUTH_HOST: api.ezsso.me
 
-# Sidecar mode (default):
-#   Apps opt-in with label: ezsso-role: client
-#
-# Ambient mode:
-#   Waypoints opt-in with label: ezsso-auth: enabled
+# Opt-in labels (all use ezsso-role):
+#   ezsso-role: client   - sidecar mode (app pods)
+#   ezsso-role: waypoint - ambient mode (waypoint proxies)
+#   ezsso-role: gateway  - ingress gateway

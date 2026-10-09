@@ -20,7 +20,7 @@ metadata:
   namespace: default
   labels:
     istio.io/waypoint-for: all
-    ezsso-auth: enabled  # Opt-in to ezsso auth
+    ezsso-role: waypoint  # Opt-in to ezsso auth
 spec:
   gatewayClassName: istio-waypoint
   listeners:
@@ -41,7 +41,7 @@ metadata:
   namespace: default
   labels:
     istio.io/waypoint-for: service
-    ezsso-auth: enabled  # Opt-in to ezsso auth
+    ezsso-role: waypoint  # Opt-in to ezsso auth
 spec:
   gatewayClassName: istio-waypoint
   listeners:
