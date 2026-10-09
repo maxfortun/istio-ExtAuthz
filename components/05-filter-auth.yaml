@@ -335,8 +335,8 @@ spec:
 
                 local location = headers:get('location')
                 if location and location ~= '' then
-                  response_handle:headers():replace(':status', '307')
-                  response_handle:logDebug('[${config.APP_NAME}-pre-res] response code changed');
+                  response_handle:headers():replace(':status', '303')
+                  response_handle:logDebug('[${config.APP_NAME}-pre-res] response code changed to 303');
                 end
 
                 local status = headers:get(':status')
