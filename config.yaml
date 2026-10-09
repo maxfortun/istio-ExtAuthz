@@ -3,8 +3,10 @@
 
 APP_NS: default
 GW_NS: istio-system
+GW_NAME: default-gateway
 APP_NAME: ezsso
 EXT_AUTH_HOST: api.ezsso.me
+REDIRECT_URI: https://your-app.example.com/oidc/idpresponse
 
 # Opt-in labels (all use ezsso-role):
 #   ezsso-role: client   - sidecar mode (app pods)

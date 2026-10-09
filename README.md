@@ -19,11 +19,16 @@ components/
 │   ├── post.lua
 │   └── extauthz.yaml
 ├── sidecar/             # Sidecar mode (default)
-│   └── envoyfilter.yaml
+│   ├── envoyfilter.yaml
+│   ├── cluster.yaml     # Outbound cluster to ezsso-auth
+│   ├── vs-authorize.yaml
+│   └── vs-idpresponse.yaml
 ├── ambient/             # Ambient mode
-│   └── envoyfilter.yaml
+│   ├── envoyfilter.yaml
+│   └── cluster.yaml
 └── gateway/             # Gateway mode
-    └── envoyfilter.yaml
+    ├── envoyfilter.yaml
+    └── cluster.yaml
 
 examples/
 ├── sidecar/
@@ -161,19 +166,22 @@ See `examples/ambient/` for complete examples.
 
 For Istio ingress gateways (edge auth at the gateway instead of sidecars).
 
-### 1. Apply EnvoyFilter
+### 1. Apply EnvoyFilter (once)
 
 ```bash
 ./render.sh components/gateway/*.yaml | kubectl apply -f -
 ```
 
-### 2. Label Gateway
+### 2. Label Gateways to Opt-in
+
+Any gateway with the label automatically gets auth:
 
 ```bash
 kubectl -n istio-system label deployment istio-ingressgateway ezsso-role=gateway
+kubectl -n istio-system label deployment my-other-gateway ezsso-role=gateway
 ```
 
-That's it. The gateway already has secrets configured.
+No per-gateway configuration needed - just the label.
 
 ---
 
